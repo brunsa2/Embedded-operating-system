@@ -134,6 +134,10 @@ static void usart_putsf_(int *varg) {
                     
                 case 'x':
                     usart_putd(*varg++, 16);
+                    break;
+                
+                case 'y':
+                    usart_putl(*varg++, 16);
                     
                 default:
                     format_string++;
