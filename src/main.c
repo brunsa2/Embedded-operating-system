@@ -1,13 +1,39 @@
-#include <avr/interrupt.h>
-#include <avr/io.h>
-#include <stdint.h>
+#include "os.h"
 #include "usart.h"
 
-/*int main() {
-    usart_init(0, USART_TRANSMIT | USART_RECEIVE);
-    usart_putsf("Hello World\r\n");
-    while (1) {
-        usart_putsf("Hello World\r\n");
+#include <stdint.h>
+
+#define STACK_SIZE 64
+
+volatile uint8_t test_stack[STACK_SIZE + 64];
+volatile uint8_t test_2_stack[STACK_SIZE + 64];
+
+void test_task();
+void test_2_task();
+
+void test_task() {
+	while (1) {
+        usart_puts("Hello World!\r\n");
+        os_delay(os_get_current_pid(), 1000);
     }
-    return 0;
-}*/
+}
+
+void test_2_task() {
+    usart_puts("Hi!\r\n");
+    os_delay(os_get_current_pid(), 5000);
+    usart_puts("Hi 2!\r\n");
+}
+
+INIT() {
+    os_add_task(test_task, &test_stack[STACK_SIZE + 63], 1, "test");
+    os_add_task(test_2_task, &test_2_stack[STACK_SIZE + 63], 2, "tst2");
+    usart_init(0, USART_TRANSMIT);
+    os_start_ticker();
+    
+    while(1) {
+        
+        
+    }
+    
+    //return 0;
+}

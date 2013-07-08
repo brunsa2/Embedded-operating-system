@@ -1,25 +1,24 @@
-#include <string.h>
-#include <avr/interrupt.h>
-#include <avr/io.h>
+/**
+ * OS
+ *
+ * Priority-based real-time multitasking operating system
+ *
+ * @author Jeff Stubler
+ * @date March 10, 2012
+ */
 
 #include "os.h"
 #include "usart.h"
 
+#ifdef __AVR_ATmega328P__
+#else
+#error Unsupported processor
+#endif
+
+#ifdef __AVR_ATmega328P__
 #define STACK_HIGH (*((volatile uint8_t *)(0x5e)))
 #define STACK_LOW (*((volatile uint8_t *)(0x5d)))
-
-#define QUANTUM_MILLISECOND_LENGTH 10
-
-typedef struct {
-    uint16_t stack_pointer;
-    uint16_t stack_start, stack_end;
-    uint8_t running;
-} process_control_block;
-
-static process_control_block pcb[MAXIMUM_NUMBER_OF_PROCESSES];
-static volatile uint8_t current_process;
-static volatile uint16_t quantum_ticks;
-static volatile uint32_t system_ticks;
+#endif
 
 #define SAVE_CONTEXT() \
     asm volatile ( \
@@ -101,106 +100,365 @@ static volatile uint32_t system_ticks;
 
 #define RETURN() asm volatile ("ret \n\t");
 
-static inline void schedule(void) {
-    pcb[current_process].stack_pointer = STACK_HIGH << 8 | STACK_LOW;
-    
-	do {
-        current_process = (current_process + 1) % MAXIMUM_NUMBER_OF_PROCESSES;
-    } while (pcb[current_process].running == 0);
-    
-	STACK_HIGH = (uint8_t) (pcb[current_process].stack_pointer >> 8);
-	STACK_LOW = (uint8_t) (pcb[current_process].stack_pointer & 0xff);
+#define HALF_TICKS 0x7fffffff
+
+void init_task(void);
+
+typedef struct {
+    char name[NAME_SIZE];
+    uint32_t start_timestamp;
+    uint16_t stack_pointer;
+    uint8_t running;
+    uint8_t delayed;
+    uint8_t suspended;
+    uint8_t semaphore_blocked;
+} process_control_block;
+
+typedef struct {
+    uint8_t r31, r30, r29, r28, r27, r26, r25, r24;
+    uint8_t r23, r22, r21, r20, r19, r18, r17, r16;
+    uint8_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint8_t r7, r6, r5, r4, r3, r2, r1, sreg, r0;
+    uint8_t task_address_high, task_address_low;
+    uint8_t terminate_address_high, terminate_address_low;
+} t_task_stack_frame;
+
+static volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES];
+static process_control_block pcb[NUMBER_OF_PROCESSES];
+static volatile uint8_t current_process;
+static volatile uint16_t quantum_ticks = 0;
+static volatile uint32_t system_ticks = 0x100000000 - 10000;
+static volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE];
+
+static void os_terminate_current_task(void) {
+	os_remove_task(os_get_current_pid());
 }
 
-void switch_processes(void) __attribute__ ((naked, noinline));
-void switch_processes(void) {
-    SAVE_CONTEXT();
-	schedule();
-    LOAD_CONTEXT();
-    RETURN();
-}
-
-uint8_t os_fork(volatile uint8_t *stack, uint16_t stack_size) {
-    SAVE_CONTEXT();
-    uint8_t new_pid = 0, old_pid = current_process;
-    while (pcb[new_pid].running) {
-        new_pid++;
-    }
-    pcb[new_pid].running = 1;
-    pcb[new_pid].stack_start = (uint16_t) stack;
-    pcb[new_pid].stack_end = (uint16_t) stack + stack_size - 1;
-    usart_putsf("Old stack from 0x%y  to 0x%y  \r\n", pcb[0].stack_start, pcb[0].stack_end);
-    usart_putsf("New stack from 0x%y  to 0x%y  \r\n", pcb[new_pid].stack_start, pcb[new_pid].stack_end);
-    uint16_t stack_size_used = pcb[current_process].stack_end - ((STACK_HIGH << 8) | STACK_LOW);
-    usart_putsf("Stack used %d\r\n", stack_size_used);
-    pcb[new_pid].stack_pointer = pcb[new_pid].stack_end - stack_size_used;
-    uint8_t *source = (uint8_t *) ((STACK_HIGH << 8) | STACK_LOW);
-    uint8_t *destination = (uint8_t *) pcb[new_pid].stack_pointer;
-    usart_putsf("Source to destination 0x%y  to 0x%y  \r\n", (uint16_t) source, (uint16_t) destination);
-    while ((uint16_t) source < pcb[current_process].stack_end + 1) {
-        //*destination++ = *source++;
-    }
-    LOAD_CONTEXT();
-    if (current_process == old_pid) {
-        return new_pid;
-    } else {
-        return 0;
-    }
-}
-
-static volatile uint8_t new_task_stack[128] __attribute__ ((aligned(16)));
-
-int main(void) {
-    uint8_t pcb_index;
-	for (pcb_index = 0; pcb_index < MAXIMUM_NUMBER_OF_PROCESSES; pcb_index++) {
-		pcb[pcb_index].running = 0;
+static void os_idle_task() {
+	// Enable idle mode
+	MCUCR |= (1 << SE);
+	MCUCR &= 0xff - ((1 << SM2) | (1 << SM1) | (1 << SM0));
+	while (1) {
+		asm("sleep");
 	}
-    
-	pcb[0].running = 1;
-    pcb[0].stack_start = (RAMEND - INIT_TASK_STACK_SIZE + 1);
-    pcb[0].stack_end = RAMEND;
-    current_process = 0;
-    
+}
+
+void enable_timer(void) {
 #ifdef __AVR_ATmega328P__
 	TCNT0 = 0;
 	TCCR0A = (1 << WGM01); // CTC mode
     TCCR0B = (1 << CS01) | (1 << CS00); // clk/64
 	OCR0A = 250; // clk/64/250 = clk/16000
 	TIMSK0 |= (1 << OCIE0A);
-#else
-#error Unsupported processor
 #endif
+}
+
+static void os_schedule(void) {
+    int current_priority;
+	for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
+		uint8_t selected_pid = priority_buffer[current_priority];
+		if (selected_pid == 0xff) {
+			continue;
+		} else {
+			if (pcb[selected_pid].running == 1 && pcb[selected_pid].delayed == 0 && pcb[selected_pid].suspended == 0 && pcb[selected_pid].semaphore_blocked == 0) {
+				current_process = selected_pid;
+				break;
+			} else if (pcb[selected_pid].delayed == 1 && system_ticks >= pcb[selected_pid].start_timestamp) {
+				pcb[selected_pid].delayed = 0;
+				current_process = selected_pid;
+				break;
+			}
+		}
+	}
+}
+
+void os_switch_processes(void) __attribute__ ((naked, noinline));
+void os_switch_processes(void) {
+	SAVE_CONTEXT();
+
+	pcb[current_process].stack_pointer = STACK_HIGH << 8 | STACK_LOW;
     
-    asm volatile ("sei");
+	// TODO: Investigate round robbin of different tasks at priority level, ready list for quick context switcher
+	os_schedule();
+
+	STACK_HIGH = (uint8_t) (pcb[current_process].stack_pointer >> 8);
+	STACK_LOW = (uint8_t) (pcb[current_process].stack_pointer & 0xff);
+
+	LOAD_CONTEXT();
+    RETURN();
+}
+
+/**
+ * Initialize operating system
+ */
+//void os_init(void) {
+int main(void) __attribute__ ((noreturn));
+int main(void) {
+    uint8_t pcb_index;
+	for (pcb_index = 0; pcb_index < NUMBER_OF_PROCESSES; pcb_index++) {
+		pcb[pcb_index].running = 0;
+        pcb[pcb_index].delayed = 0;
+        pcb[pcb_index].suspended = 0;
+        pcb[pcb_index].semaphore_blocked = 0;
+		copy_string(pcb[pcb_index].name, NAME_SIZE, "");
+		pcb[pcb_index].stack_pointer = 0;
+		priority_buffer[pcb_index] = 0xff;
+	}
+
+	pcb[0].running = 1;
+	copy_string(pcb[0].name, NAME_SIZE, "init");
+	pcb[0].stack_pointer = STACK_HIGH << 8 | STACK_LOW;
+	priority_buffer[NUMBER_OF_PROCESSES - 2] = 0;
+
+	current_process = 0;
     
     usart_init(0, USART_TRANSMIT);
     
-    uint8_t pid = os_fork(new_task_stack, 128);
+	os_add_task(os_idle_task, &idle_task_stack[IDLE_TASK_STACK_SIZE - 1], NUMBER_OF_PROCESSES - 1, "idle");
+	enable_timer();
     
-    if (current_process) {
-        while (1) {
-            //usart_putsf("*\r\n");
-        }
-    } else {
-        while (1) {
-            //usart_putsf("!\r\n");
-        }
+    asm volatile ("ijmp" : : "z" ((uint16_t) init_task));
+    while (1);
+}
+
+/**
+ * Start multitasking with the timer ticker
+ */
+void os_start_ticker(void) {
+	asm("sei");
+}
+
+/**
+ * Delay task for specified number of ticks
+ *
+ * @param pid Process ID to delay
+ * @param ticks Number of ticks to delay
+ */
+int8_t os_delay(uint8_t pid, uint32_t ticks) {
+	if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	uint32_t start_timestamp = system_ticks + ticks;
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].start_timestamp = start_timestamp;
+    pcb[pid].delayed = 1;
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return 0;
+}
+
+/**
+ * Cancel any delay on a task
+ * @param pid Process ID to cancel delay for
+ */
+int8_t os_cancel_delay(uint8_t pid) {
+    if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+        return -1;
     }
-    
+    ENTER_CRITICAL_SECTION();
+    pcb[pid].delayed = 0;
+    LEAVE_CRITICAL_SECTION();
+    os_switch_processes();
     return 0;
+}
+
+/**
+ * Add new task to operating system
+ */
+int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority, char *name) {
+	if (priority < 0 || priority >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+
+	ENTER_CRITICAL_SECTION();
+
+	uint8_t current_pcb = 0;
+
+	while (pcb[current_pcb].running == 1) {
+		current_pcb++;
+	}
+
+	if (priority_buffer[priority] != 0xff || current_pcb >= NUMBER_OF_PROCESSES) {
+		LEAVE_CRITICAL_SECTION();
+		return -1;
+	}
+
+	pcb[current_pcb].running = 1;
+	copy_string(pcb[current_pcb].name, NAME_SIZE, name);
+	pcb[current_pcb].stack_pointer = (uint16_t) stack - sizeof(t_task_stack_frame);
+	priority_buffer[priority] = current_pcb;
+    
+    t_task_stack_frame *new_task = (t_task_stack_frame *) (stack - sizeof(t_task_stack_frame) + 1);
+    new_task->terminate_address_low = (uint8_t) ((uint16_t) os_terminate_current_task & 0xff);
+    new_task->terminate_address_high = (uint8_t) ((uint16_t) os_terminate_current_task >> 8);
+    new_task->task_address_low = (uint8_t) ((uint16_t) task & 0xff);
+    new_task->task_address_high = (uint8_t) ((uint16_t) task >> 8);
+    new_task->sreg = 0x80;
+
+	LEAVE_CRITICAL_SECTION();
+
+	return current_pcb;
+}
+
+/**
+ * Remove a task from running
+ */
+int8_t os_remove_task(uint8_t pid) {
+	int current_priority;
+	if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].running = 0;
+	for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
+		if (priority_buffer[current_priority] == pid) {
+			priority_buffer[current_priority] = 0xff;
+		}
+	}
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return 0;
+}
+
+/**
+ * Get current task
+ */
+uint8_t os_get_current_pid(void) {
+	return current_process;
+}
+
+// TODO: Add destination buffer size and do not overwrite it
+void copy_string(char *destination, uint8_t destination_size, char *source) {
+	char *original_destination = destination;
+	uint8_t original_destination_size = destination_size;
+	while (*source != '\0' && destination_size > 0) {
+		*destination = *source;
+		destination++;
+		source++;
+		destination_size--;
+	}
+	original_destination[original_destination_size - 1] = '\0';
+}
+
+void os_set_task_name(uint8_t pid, char *name) {
+	copy_string(pcb[pid].name, NAME_SIZE, name);
+}
+
+char *os_get_task_name(uint8_t pid) {
+	return pcb[pid].name;
+}
+
+int8_t os_set_task_priority(uint8_t pid, uint8_t priority) {
+	if (priority < 0 || priority >= NUMBER_OF_PROCESSES || pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	uint8_t old_priority = os_get_task_priority(pid);
+	if (priority_buffer[priority] == 0xff) {
+		priority_buffer[priority] = pid;
+		priority_buffer[old_priority] = 0xff;
+	}
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return 0;
+}
+
+int8_t os_get_task_priority(uint8_t pid) {
+	int current_priority;
+	for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
+		if (priority_buffer[current_priority] == pid) {
+			return current_priority;
+		}
+	}
+	return -1;
+}
+
+int8_t os_suspend_task(uint8_t pid) {
+	if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].suspended = 1;
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return 0;
+}
+
+int8_t os_resume_task(uint8_t pid) {
+	if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].suspended = 0;
+	LEAVE_CRITICAL_SECTION();
+	return 0;
+}
+
+void os_semaphore_init(os_semaphore *semaphore, uint8_t count) {
+    semaphore->count = count;
+    uint8_t pid;
+    for (pid = 0; pid < NUMBER_OF_PROCESSES; pid++) {
+        semaphore->wait_list[pid] = 0;
+    }
+}
+
+int8_t os_semaphore_wait(os_semaphore *semaphore) {
+    ENTER_CRITICAL_SECTION();
+    if (semaphore->count > 0) {
+        semaphore->count--;
+        LEAVE_CRITICAL_SECTION();
+        return 0;
+    }
+    uint8_t pid = os_get_current_pid();
+    semaphore->wait_list[pid] = 1;
+    pcb[pid].semaphore_blocked = 1;
+    LEAVE_CRITICAL_SECTION();
+    os_switch_processes();
+    ENTER_CRITICAL_SECTION_AGAIN();
+    semaphore->count--;
+    LEAVE_CRITICAL_SECTION();
+    return 0;
+}
+
+int8_t os_semaphore_signal(os_semaphore *semaphore) {
+    ENTER_CRITICAL_SECTION();
+    if (semaphore->count == 0) {
+        uint8_t pid;
+        for (pid = 0; pid < NUMBER_OF_PROCESSES; pid++) {
+            pcb[pid].semaphore_blocked = 0;
+            semaphore->wait_list[pid] = 0;
+        }
+        LEAVE_CRITICAL_SECTION();
+        os_switch_processes();
+        ENTER_CRITICAL_SECTION_AGAIN();
+    }
+    if (semaphore->count < 255) {
+        semaphore->count++;
+        LEAVE_CRITICAL_SECTION();
+        return 0;
+    }
+    LEAVE_CRITICAL_SECTION();
+    return -1;
 }
 
 #ifdef __AVR_ATmega328P__
 ISR(TIMER0_COMPA_vect) {
-#else
-#error Unsupported processor
 #endif
 	quantum_ticks++;
 	system_ticks++;
-    
+
 	if (quantum_ticks >= QUANTUM_MILLISECOND_LENGTH) {
+        if (system_ticks > HALF_TICKS) {
+            // Adjust timestamps so that timestamps never roll over
+            system_ticks -= HALF_TICKS;
+            uint8_t pid;
+            for (pid = 0; pid < NUMBER_OF_PROCESSES; pid++) {
+                if (pcb[pid].delayed) {
+                    pcb[pid].start_timestamp -= HALF_TICKS;
+                }
+            }
+        }
 		quantum_ticks = 0;
-        usart_putsf("*");
-        switch_processes();
+		os_switch_processes();
 	}
 }
