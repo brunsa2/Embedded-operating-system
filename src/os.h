@@ -35,6 +35,10 @@
  */
 #define IDLE_TASK_STACK_SIZE 64
 
+#define STACK_BLOCK_SIZE 32
+#define STACK_BLOCKS 16
+#define INIT_STACK_BLOCKS 4
+
 /**
  * Semaphore structure
  */
@@ -43,6 +47,12 @@ typedef struct {
     uint8_t count;
     uint8_t wait_list[NUMBER_OF_PROCESSES];
 } os_semaphore;
+
+typedef struct {
+    uint8_t next, size;
+} os_stack_free_list_node;
+
+#define OS_FREE_LIST_NULL 255
 
 /* Critical sections */
 
@@ -117,5 +127,8 @@ int8_t os_resume_task(uint8_t pid);
 void os_semaphore_init(os_semaphore *semaphore, uint8_t count);
 int8_t os_semaphore_wait(os_semaphore *semaphore);
 int8_t os_semaphore_signal(os_semaphore *semaphore);
+
+void os_lock_scheduler(void);
+void os_unlock_scheduler(void);
 
 #endif

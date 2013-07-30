@@ -129,6 +129,29 @@ static volatile uint8_t current_process;
 static volatile uint16_t quantum_ticks = 0;
 static volatile uint32_t system_ticks = 0x100000000 - 10000;
 static volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE];
+static volatile uint8_t nesting_level = 0;
+
+volatile os_stack_free_list_node *stack_free_list;
+
+static uint8_t *os_get_free_stack(uint8_t blocks) {
+    return (uint8_t *) NULL;
+}
+
+static uint8_t *os_find_exact_or_biggest_stack_space(uint8_t blocks) {
+    os_stack_free_list_node *node = stack_free_list;
+    uint8_t largest_size = 0;
+    os_stack_free_list_node *largest_node = NULL;
+    while (node->next != OS_FREE_LIST_NULL) {
+        if (blocks == node->size) {
+            return (uint8_t*) (node + STACK_BLOCK_SIZE - 1);
+        }
+        if (node->size > largest_size) {
+            largest_size = node->size;
+            largest_node = node;
+        }
+    }
+    return largest_node;
+}
 
 static void os_terminate_current_task(void) {
 	os_remove_task(os_get_current_pid());
@@ -155,6 +178,9 @@ void enable_timer(void) {
 
 static void os_schedule(void) {
     int current_priority;
+    if (nesting_level) {
+        return;
+    }
 	for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
 		uint8_t selected_pid = priority_buffer[current_priority];
 		if (selected_pid == 0xff) {
@@ -194,6 +220,10 @@ void os_switch_processes(void) {
 //void os_init(void) {
 int main(void) __attribute__ ((noreturn));
 int main(void) {
+    stack_free_list = (os_stack_free_list_node *) (RAMEND - (INIT_STACK_BLOCKS * STACK_BLOCK_SIZE) + 1);
+    stack_free_list->next = OS_FREE_LIST_NULL;
+    stack_free_list->size = STACK_BLOCKS - INIT_STACK_BLOCKS;
+    
     uint8_t pcb_index;
 	for (pcb_index = 0; pcb_index < NUMBER_OF_PROCESSES; pcb_index++) {
 		pcb[pcb_index].running = 0;
@@ -441,6 +471,31 @@ int8_t os_semaphore_signal(os_semaphore *semaphore) {
     return -1;
 }
 
+// The lock/unlock pair should not contain any system calls that switch tasks
+// (such as delays or semaphore signals). Use is undefined.
+void os_lock_scheduler(void) {
+    ENTER_CRITICAL_SECTION();
+    if (nesting_level < 255) {
+        nesting_level++;
+    }
+    LEAVE_CRITICAL_SECTION();
+}
+
+void os_unlock_scheduler(void) {
+    ENTER_CRITICAL_SECTION();
+    if (nesting_level > 0) {
+        nesting_level--;
+        if (!nesting_level) {
+            LEAVE_CRITICAL_SECTION();
+            os_switch_processes();
+        } else {
+            LEAVE_CRITICAL_SECTION();
+        }
+    } else {
+        LEAVE_CRITICAL_SECTION();
+    }
+}
+
 #ifdef __AVR_ATmega328P__
 ISR(TIMER0_COMPA_vect) {
 #endif
@@ -459,6 +514,6 @@ ISR(TIMER0_COMPA_vect) {
             }
         }
 		quantum_ticks = 0;
-		os_switch_processes();
+        os_switch_processes();
 	}
 }
