@@ -32,12 +32,13 @@ void os_init(void) {
     pcb[0].running = 1;
 }
 
+//int main(void) __attribute__ ((naked))
 int main(void) {
     pcb[0].running = 0;
     return 0;
 }
 
-void os_stop(void) __attribute__ ((naked, section (".fini1")));
+void os_stop(void) __attribute__ ((naked, noreturn, section (".fini0")));
 void os_stop(void) {
     while (1);
 }

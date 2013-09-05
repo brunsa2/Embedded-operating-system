@@ -15,8 +15,6 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 
-//#include "atmega32.h"
-
 // TODO: Add preprocess check on various params
 /**
  * Maximum number of processes that can be managed
@@ -76,29 +74,29 @@ typedef struct {
 /**
  * Initialize operating system
  */
-void os_init(void);
+//void os_init(void);
 
 /**
  * Start multitasking with the timer ticker
  */
-void os_start_ticker(void);
+//void os_start_ticker(void);
 
 /**
  * Add new task to operating system
  */
-int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority, char *name);
+//int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority, char *name);
 
 /**
  * Remove a task from the operating system
  */
-int8_t os_remove_task(uint8_t pid);
+//int8_t os_remove_task(uint8_t pid);
 
 /**
  * Get current task
  */
-uint8_t os_get_current_pid(void);
+//uint8_t os_get_current_pid(void);
 
-void copy_string(char *destination, uint8_t destination_size, char *source);
+//void copy_string(char *destination, uint8_t destination_size, char *source);
 
 /**
  * Delay task for specified number of ticks
@@ -106,29 +104,29 @@ void copy_string(char *destination, uint8_t destination_size, char *source);
  * @param pid Process ID to delay
  * @param ticks Number of ticks to delay
  */
-int8_t os_delay(uint8_t pid, uint32_t ticks);
+//int8_t os_delay(uint8_t pid, uint32_t ticks);
 
 /**
  * Cancel any delay on a task
  * @param pid Process ID to cancel delay for
  * @return Error code
  */
-int8_t os_cancel_delay(uint8_t pid);
+//int8_t os_cancel_delay(uint8_t pid);
 
-void os_set_task_name(uint8_t pid, char *name);
-char *os_get_task_name(uint8_t pid);
+//void os_set_task_name(uint8_t pid, char *name);
+//char *os_get_task_name(uint8_t pid);
 
-int8_t os_set_task_priority(uint8_t pid, uint8_t priority);
-int8_t os_get_task_priority(uint8_t pid);
+//int8_t os_set_task_priority(uint8_t pid, uint8_t priority);
+//int8_t os_get_task_priority(uint8_t pid);
 
-int8_t os_suspend_task(uint8_t pid);
-int8_t os_resume_task(uint8_t pid);
+//int8_t os_suspend_task(uint8_t pid);
+//int8_t os_resume_task(uint8_t pid);
 
-void os_semaphore_init(os_semaphore *semaphore, uint8_t count);
-int8_t os_semaphore_wait(os_semaphore *semaphore);
-int8_t os_semaphore_signal(os_semaphore *semaphore);
+//void os_semaphore_init(os_semaphore *semaphore, uint8_t count);
+//int8_t os_semaphore_wait(os_semaphore *semaphore);
+//int8_t os_semaphore_signal(os_semaphore *semaphore);
 
-void os_lock_scheduler(void);
-void os_unlock_scheduler(void);
+//void os_lock_scheduler(void);
+//void os_unlock_scheduler(void);
 
 #endif

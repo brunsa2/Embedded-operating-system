@@ -13,9 +13,9 @@ BUILD_DIRECTORY = bin/
 TEST_DIRECTORY = test/
 
 SOURCES := $(wildcard $(SOURCE_DIRECTORY)*.c)
-TEST_SOURCES = $(wildcard $(TEST_DIRECTORY)*.c) $(patsubst src/%,test/%,$(SOURCES))
-OBJECTS := $(SOURCES:.o=.c)
-TEST_OBJECTS = $(TEST_SOURCES:.o=.c)
+TEST_SOURCES = $(wildcard $(TEST_DIRECTORY)*.c) $(SOURCES)
+OBJECTS := $(patsubst %.c,%.o,$(SOURCES))
+TEST_OBJECTS = $(patsubst %.c,%.o,$(TEST_SOURCES))
 
 CC = avr-gcc
 CFLAGS = -g -Wall -Os -DF_CPU=$(CLOCK) -mmcu=$(DEVICE)
@@ -24,15 +24,6 @@ TESTCC = gcc
 TESTCFLAGS = 
 
 AVRDUDE = avrdude -c $(PROGRAMMER) -P $(PROGRAMMER_PORT) -p $(PROGRAMMED_DEVICE)
-
-dump:
-	@echo $(SOURCES)
-	@echo
-	@echo $(TEST_SOURCES)
-	@echo
-	@echo $(OBJECTS)
-	@echo
-	@echo $(TEST_OBJECTS)
 
 all: $(BUILD_DIRECTORY)$(EXEC).hex
 
@@ -63,6 +54,8 @@ flash: $(BUILD_DIRECTORY)$(EXEC).hex
 fuse:
 	$(AVRDUDE) $(FUSES)
 
+test: CC=$(TESTCC)
+test: CFLAGS=$(TESTCFLAGS)
 test: $(TEST_OBJECTS)
 	
 $(TEST_DIRECTORY)%.o: $(TEST_DIRECTORY)%.c
