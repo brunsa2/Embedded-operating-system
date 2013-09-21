@@ -211,6 +211,33 @@ void CuAssertIntEquals_LineMsg(CuTest* tc, const char* file, int line, const cha
 	CuFail_Line(tc, file, line, message, buf);
 }
 
+void CuAssertUint8Equals_LineMsg(CuTest* tc, const char* file, int line, const char* message,
+    uint8_t expected, uint8_t actual)
+{
+    char buf[STRING_MAX];
+    if (expected == actual) return;
+    sprintf(buf, "expected <%d> but was <%d>", expected, actual);
+    CuFail_Line(tc, file, line, message, buf);
+}
+
+void CuAssertUint16Equals_LineMsg(CuTest* tc, const char* file, int line, const char* message,
+    uint16_t expected, uint16_t actual)
+{
+    char buf[STRING_MAX];
+    if (expected == actual) return;
+    sprintf(buf, "expected <%d> but was <%d>", expected, actual);
+    CuFail_Line(tc, file, line, message, buf);
+}
+
+void CuAssertUint32Equals_LineMsg(CuTest* tc, const char* file, int line, const char* message,
+    uint32_t expected, uint32_t actual)
+{
+    char buf[STRING_MAX];
+    if (expected == actual) return;
+    sprintf(buf, "expected <%d> but was <%d>", expected, actual);
+    CuFail_Line(tc, file, line, message, buf);
+}
+
 void CuAssertDblEquals_LineMsg(CuTest* tc, const char* file, int line, const char* message, 
 	double expected, double actual, double delta)
 {
@@ -336,4 +363,16 @@ void CuSuiteDetails(CuSuite* testSuite, CuString* details)
 		CuStringAppendFormat(details, "Passes: %d ", testSuite->count - testSuite->failCount);
 		CuStringAppendFormat(details, "Fails: %d\n",  testSuite->failCount);
 	}
+}
+
+int CuSuiteErrorCode(CuSuite* testSuite)
+{
+    if (testSuite->failCount == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        return -1;
+    }
 }

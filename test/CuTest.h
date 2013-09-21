@@ -3,6 +3,7 @@
 
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 #define CUTEST_VERSION  "CuTest 1.5"
 
@@ -64,6 +65,15 @@ void CuAssertStrEquals_LineMsg(CuTest* tc,
 void CuAssertIntEquals_LineMsg(CuTest* tc, 
 	const char* file, int line, const char* message, 
 	int expected, int actual);
+void CuAssertUint8Equals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+    uint8_t expected, uint8_t actual);
+void CuAssertUint16Equals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+    uint16_t expected, uint16_t actual);
+void CuAssertUint32Equals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+    uint32_t expected, uint32_t actual);
 void CuAssertDblEquals_LineMsg(CuTest* tc, 
 	const char* file, int line, const char* message, 
 	double expected, double actual, double delta);
@@ -81,6 +91,12 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc,
 #define CuAssertStrEquals_Msg(tc,ms,ex,ac)    CuAssertStrEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 #define CuAssertIntEquals(tc,ex,ac)           CuAssertIntEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
 #define CuAssertIntEquals_Msg(tc,ms,ex,ac)    CuAssertIntEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+#define CuAssertUint8Equals(tc,ex,ac)         CuAssertUint8Equals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertUint8Equals_Msg(tc,ms,ex,ac)  CuAssertUint8Equals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+#define CuAssertUint16Equals(tc,ex,ac)        CuAssertUint16Equals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertUint16Euqlas_Msg(tc,ms,ex,ac) CuAssertUint16Equals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+#define CuAssertUint32Equals(tc,ex,ac)        CuAssertUint32Equals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertUint32Euqlas_Msg(tc,ms,ex,ac) CuAssertUint32Equals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 #define CuAssertDblEquals(tc,ex,ac,dl)        CuAssertDblEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac),(dl))
 #define CuAssertDblEquals_Msg(tc,ms,ex,ac,dl) CuAssertDblEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac),(dl))
 #define CuAssertPtrEquals(tc,ex,ac)           CuAssertPtrEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
@@ -112,5 +128,6 @@ void CuSuiteAddSuite(CuSuite* testSuite, CuSuite* testSuite2);
 void CuSuiteRun(CuSuite* testSuite);
 void CuSuiteSummary(CuSuite* testSuite, CuString* summary);
 void CuSuiteDetails(CuSuite* testSuite, CuString* details);
+int CuSuiteErrorCode(CuSuite* testSuite);
 
 #endif /* CU_TEST_H */
