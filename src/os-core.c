@@ -28,11 +28,101 @@
 volatile unsigned long int stack_high, stack_low;
 #define STACK_HIGH (stack_high)
 #define STACK_LOW (stack_low)
+#define PTR_TO_INT_CAST(ptr) ((unsigned long int) ptr)
+
 #define SLEEP()
 #elif __AVR_ATmega328P__
 #define STACK_HIGH (*((volatile uint8_t *)(0x5e)))
 #define STACK_LOW (*((volatile uint8_t *)(0x5d)))
+#define PTR_TO_INT_CAST(ptr) ((uint16_t) ptr)
+
 #define SLEEP() asm("sleep");
+#endif
+
+/* Context */
+
+#ifdef __AVR_TestEnv__
+#define SAVE_CONTEXT()
+#define LOAD_CONTEXT()
+#define RETURN()
+#else
+#define SAVE_CONTEXT() \
+    asm volatile ( \
+    "push r0 \n\t" \
+    "in r0, __SREG__ \n\t" \
+    "cli \n\t" \
+    "push r0 \n\t" \
+    "push r1 \n\t" \
+    "clr r1 \n\t" \
+    "push r2 \n\t" \
+    "push r3 \n\t" \
+    "push r4 \n\t" \
+    "push r5 \n\t" \
+    "push r6 \n\t" \
+    "push r7 \n\t" \
+    "push r8 \n\t" \
+    "push r9 \n\t" \
+    "push r10 \n\t" \
+    "push r11 \n\t" \
+    "push r12 \n\t" \
+    "push r13 \n\t" \
+    "push r14 \n\t" \
+    "push r15 \n\t" \
+    "push r16 \n\t" \
+    "push r17 \n\t" \
+    "push r18 \n\t" \
+    "push r19 \n\t" \
+    "push r20 \n\t" \
+    "push r21 \n\t" \
+    "push r22 \n\t" \
+    "push r23 \n\t" \
+    "push r24 \n\t" \
+    "push r25 \n\t" \
+    "push r26 \n\t" \
+    "push r27 \n\t" \
+    "push r28 \n\t" \
+    "push r29 \n\t" \
+    "push r30 \n\t" \
+    "push r31 \n\t" \
+    );
+#define LOAD_CONTEXT() \
+    asm volatile ( \
+    "pop r31 \n\t" \
+    "pop r30 \n\t" \
+    "pop r29 \n\t" \
+    "pop r28 \n\t" \
+    "pop r27 \n\t" \
+    "pop r26 \n\t" \
+    "pop r25 \n\t" \
+    "pop r24 \n\t" \
+    "pop r23 \n\t" \
+    "pop r22 \n\t" \
+    "pop r21 \n\t" \
+    "pop r20 \n\t" \
+    "pop r19 \n\t" \
+    "pop r18 \n\t" \
+    "pop r17 \n\t" \
+    "pop r16 \n\t" \
+    "pop r15 \n\t" \
+    "pop r14 \n\t" \
+    "pop r13 \n\t" \
+    "pop r12 \n\t" \
+    "pop r11 \n\t" \
+    "pop r10 \n\t" \
+    "pop r9 \n\t" \
+    "pop r8 \n\t" \
+    "pop r7 \n\t" \
+    "pop r6 \n\t" \
+    "pop r5 \n\t" \
+    "pop r4 \n\t" \
+    "pop r3 \n\t" \
+    "pop r2 \n\t" \
+    "pop r1 \n\t" \
+    "pop r0 \n\t" \
+    "out __SREG__, r0 \n\t" \
+    "pop r0 \n\t" \
+    );
+#define RETURN() asm volatile ("ret \n\t");
 #endif
 
 /* Critical sections */
@@ -43,15 +133,13 @@ volatile unsigned long int stack_high, stack_low;
 #define LEAVE_CRITICAL_SECTION()
 #elif __AVR_ATmega328P__
 #define ENTER_CRITICAL_SECTION() \
-uint8_t flags = SREG; \
-asm volatile ("cli");
-
+    uint8_t flags = SREG; \
+    asm volatile ("cli");
 #define ENTER_CRITICAL_SECTION_AGAIN() \
-flags = SREG; \
-asm volatile ("cli");
-
+    flags = SREG; \
+    asm volatile ("cli");
 #define LEAVE_CRITICAL_SECTION() \
-SREG = flags;
+    SREG = flags;
 #endif
 
 #ifdef __AVR_TestEnv__
@@ -66,9 +154,12 @@ volatile uint8_t current_process;
 volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE] NOINIT;
 volatile uint16_t quantum_ticks;
 volatile uint32_t system_ticks;
+volatile uint8_t nesting_level;
 
 static void os_idle_task(void) NORETURN;
 static void os_terminate_current_task(void);
+static void os_switch_processes(void) NAKED NOINLINE;
+static void os_schedule(void);
 
 void os_init(void) {
     uint8_t pcb_index;
@@ -168,4 +259,41 @@ ISR(TIMER0_COMPA_vect) {
 		quantum_ticks = 0;
         //os_switch_processes();
 	}
+}
+    
+static void os_switch_processes(void) {
+    SAVE_CONTEXT();
+    
+    pcb[current_process].stack_pointer = (uint8_t *) (STACK_HIGH << 8 | STACK_LOW);
+    
+    // TODO: Investigate round robbin of different tasks at priority level, ready list for quick context switcher
+    os_schedule();
+    
+    STACK_HIGH = PTR_TO_INT_CAST(pcb[current_process].stack_pointer >> 8);
+    STACK_LOW = PTR_TO_INT_CAST(pcb[current_process].stack_pointer & 0xff);
+    
+    LOAD_CONTEXT();
+    RETURN();
+}
+
+static void os_schedule(void) {
+    int current_priority;
+    if (nesting_level) {
+        return;
+    }
+    for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
+        uint8_t selected_pid = priority_buffer[current_priority];
+        if (selected_pid == 0xff) {
+            continue;
+        } else {
+            if (pcb[selected_pid].running == 1 && pcb[selected_pid].delayed == 0 && pcb[selected_pid].suspended == 0 && pcb[selected_pid].semaphore_blocked == 0) {
+                current_process = selected_pid;
+                break;
+            } else if (pcb[selected_pid].delayed == 1 && system_ticks >= pcb[selected_pid].start_timestamp) {
+                pcb[selected_pid].delayed = 0;
+                current_process = selected_pid;
+                break;
+            }
+        }
+    }
 }

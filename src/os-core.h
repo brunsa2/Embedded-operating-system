@@ -22,12 +22,14 @@
 
 #ifdef __AVR_ATmega328P__
 #define NAKED __attribute__ ((naked))
+#define NOINLINE __attribute__ ((noinline))
 #define NOINIT __attribute__ ((section (".noinit")))
 #define INIT5_SECTION __attribute__ ((section (".init5")))
 #define FINI1_SECTION __attribute__ ((section (".fini0")))
 #define NORETURN __attribute__ ((noreturn))
 #elif __AVR_TestEnv__
 #define NAKED
+#define NOINLINE
 #define NOINIT
 #define INIT5_SECTION
 #define FINI1_SECTION
