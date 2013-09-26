@@ -13,6 +13,7 @@
 #else
 #include "os-conf.h"
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #endif
 #include "os-core.h"
 #include "os-util.h"
@@ -53,22 +54,21 @@ asm volatile ("cli");
 SREG = flags;
 #endif
 
-typedef struct {
-    uint8_t r31, r30, r29, r28, r27, r26, r25, r24;
-    uint8_t r23, r22, r21, r20, r19, r18, r17, r16;
-    uint8_t r15, r14, r13, r12, r11, r10, r9, r8;
-    uint8_t r7, r6, r5, r4, r3, r2, r1, sreg, r0;
-    uint8_t task_address_high, task_address_low;
-    uint8_t terminate_address_high, terminate_address_low;
-} t_task_stack_frame;
+#ifdef __AVR_TestEnv__
+#define TICK_ROLLOVER 0xf
+#else
+#define TICK_ROLLOVER 0x7fffffff
+#endif
 
-volatile t_process_control_block pcb[NUMBER_OF_PROCESSES] NOINIT;
+volatile t_process_control_block pcb[NUMBER_OF_PROCESSES];
 static volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
-static volatile uint8_t current_process;
-static volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE] NOINIT;
+volatile uint8_t current_process;
+volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE] NOINIT;
+volatile uint16_t quantum_ticks;
+volatile uint32_t system_ticks;
 
 static void os_idle_task(void) NORETURN;
-//static void os_terminate_current_task(void);
+static void os_terminate_current_task(void);
 
 void os_init(void) {
     uint8_t pcb_index;
@@ -105,7 +105,6 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
     
 	uint8_t current_pcb = 0;
     
-    // TODO: Error catching if current_pcb >= NUMBER_OF_PROCESSES here?
 	while (pcb[current_pcb].running == 1) {
 		current_pcb++;
 	}
@@ -120,10 +119,9 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 	priority_buffer[priority] = current_pcb;
     
     t_task_stack_frame *new_task = (t_task_stack_frame *) (stack - sizeof(t_task_stack_frame) + 1);
-    //new_task->terminate_address_low = (uint8_t) ((uint16_t) os_terminate_current_task & 0xff);
-    //new_task->terminate_address_high = (uint8_t) ((uint16_t) os_terminate_current_task >> 8);
-    //new_task->task_address_low = (uint8_t) ((uint16_t) task & 0xff);
-    //new_task->task_address_high = (uint8_t) ((uint16_t) task >> 8);
+    new_task->terminate_function = os_terminate_current_task;
+    new_task->task_function = task;
+    new_task->r1 = 0;
     new_task->sreg = 0x80;
     
 	LEAVE_CRITICAL_SECTION();
@@ -131,9 +129,9 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 	return current_pcb;
 }
 
-/*static void os_terminate_current_task(void) {
+static void os_terminate_current_task(void) {
 	
-}*/
+}
 
 static void os_idle_task(void) {
 	// Enable idle mode
@@ -144,3 +142,30 @@ static void os_idle_task(void) {
 	}
 }
 
+uint8_t os_get_current_pid(void) {
+	return current_process;
+}
+
+#ifdef __AVR_TestEnv__
+void timer_interrupt(void) {
+#elif __AVR_ATmega328P__
+ISR(TIMER0_COMPA_vect) {
+#endif
+	quantum_ticks++;
+	system_ticks++;
+    
+	if (quantum_ticks >= QUANTUM_MILLISECOND_LENGTH) {
+         if (system_ticks >= TICK_ROLLOVER) {
+            // Adjust timestamps so that timestamps never roll over
+            uint8_t pid;
+            for (pid = 0; pid < NUMBER_OF_PROCESSES; pid++) {
+                if (pcb[pid].delayed) {
+                    pcb[pid].start_timestamp -= system_ticks + 1;
+                }
+            }
+            system_ticks = 0;
+        }
+		quantum_ticks = 0;
+        //os_switch_processes();
+	}
+}

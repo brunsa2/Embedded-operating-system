@@ -65,6 +65,9 @@ void CuAssertStrEquals_LineMsg(CuTest* tc,
 void CuAssertIntEquals_LineMsg(CuTest* tc, 
 	const char* file, int line, const char* message, 
 	int expected, int actual);
+void CuAssertLongEquals_LineMsg(CuTest* tc,
+    const char* file, int line, const char* message,
+    long expected, long actual);
 void CuAssertUint8Equals_LineMsg(CuTest* tc,
     const char* file, int line, const char* message,
     uint8_t expected, uint8_t actual);
@@ -91,6 +94,8 @@ void CuAssertPtrEquals_LineMsg(CuTest* tc,
 #define CuAssertStrEquals_Msg(tc,ms,ex,ac)    CuAssertStrEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 #define CuAssertIntEquals(tc,ex,ac)           CuAssertIntEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
 #define CuAssertIntEquals_Msg(tc,ms,ex,ac)    CuAssertIntEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
+#define CuAssertLongEquals(tc,ex,ac)          CuAssertLongEquals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
+#define CuAssertLongEquals_Msg(tc,ms,ex,ac)   CuAssertLongEquals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 #define CuAssertUint8Equals(tc,ex,ac)         CuAssertUint8Equals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))
 #define CuAssertUint8Equals_Msg(tc,ms,ex,ac)  CuAssertUint8Equals_LineMsg((tc),__FILE__,__LINE__,(ms),(ex),(ac))
 #define CuAssertUint16Equals(tc,ex,ac)        CuAssertUint16Equals_LineMsg((tc),__FILE__,__LINE__,NULL,(ex),(ac))

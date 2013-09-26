@@ -25,11 +25,14 @@ TESTCFLAGS = -Wall -D__AVR_TestEnv__
 
 AVRDUDE = avrdude -c $(PROGRAMMER) -P $(PROGRAMMER_PORT) -p $(PROGRAMMED_DEVICE)
 
+.PHONY : all
 all: $(BUILD_DIRECTORY)$(EXEC).hex
 
+.PHONY : clean
 clean:
 	rm -rf $(BUILD_DIRECTORY)* $(OBJECTS) $(TEST_OBJECTS)
-    
+
+.PHONY : disasm
 disasm: $(BUILD_DIRECTORY)$(EXEC).lss
 
 %.lss: %.elf
@@ -45,18 +48,23 @@ $(BUILD_DIRECTORY)$(EXEC).hex: $(BUILD_DIRECTORY)$(EXEC).elf
 	avr-objcopy -j .text -j .data -O ihex $(BUILD_DIRECTORY)$(EXEC).elf $(BUILD_DIRECTORY)$(EXEC).hex
 	avr-size --format=avr --mcu=$(DEVICE) $(BUILD_DIRECTORY)$(EXEC).elf
 
+.PHONY : connect
 connect:
 	$(AVRDUDE)
 
+.PHONY : flash
 flash: $(BUILD_DIRECTORY)$(EXEC).hex
 	$(AVRDUDE) -U flash:w:$(BUILD_DIRECTORY)$(EXEC).hex:i
 
+.PHONY : fuse
 fuse:
 	$(AVRDUDE) $(FUSES)
 
+.PHONY : test
 test: CC=$(TESTCC)
 test: CFLAGS=$(TESTCFLAGS)
 test: $(BUILD_DIRECTORY)$(TEXTEXEC)
+	@bin/test-os
 
 $(BUILD_DIRECTORY)$(TEXTEXEC): $(TEST_OBJECTS)
 	$(CC) $(CFLAGS) -o $(BUILD_DIRECTORY)$(TESTEXEC) $(TEST_OBJECTS)

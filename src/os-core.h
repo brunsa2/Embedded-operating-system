@@ -39,11 +39,6 @@
 // TODO: Add preprocess check on various params
 
 /**
- * Length of each time quantum (ms)
- */
-#define QUANTUM_MILLISECOND_LENGTH 10
-
-/**
  * Stack size
  */
 #define IDLE_TASK_STACK_SIZE 64
@@ -74,14 +69,29 @@ void init_task(void) __attribute__ ((noreturn)); \
 void init_task(void);
 
 typedef struct {
+    uint8_t r31, r30, r29, r28, r27, r26, r25, r24;
+    uint8_t r23, r22, r21, r20, r19, r18, r17, r16;
+    uint8_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint8_t r7, r6, r5, r4, r3, r2, r1, sreg, r0;
+    uint8_t task_address_high, task_address_low;
+    uint8_t terminate_address_high, terminate_address_low;
+    void (*task_function)(void);
+    void (*terminate_function)(void);
+} t_task_stack_frame;
+
+typedef struct {
     uint32_t start_timestamp;
     // TODO: Rename to stack
     volatile uint8_t *stack_pointer;
-    uint8_t running;
-    uint8_t delayed;
-    uint8_t suspended;
-    uint8_t semaphore_blocked;
+    uint8_t running : 1;
+    uint8_t delayed : 1;
+    uint8_t suspended : 1;
+    uint8_t semaphore_blocked : 1;
 } t_process_control_block;
+
+#ifdef __AVR_TestEnv__
+void timer_interrupt(void);
+#endif
 
 /**
  * Initialize operating system
@@ -107,7 +117,7 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 /**
  * Get current task
  */
-//uint8_t os_get_current_pid(void);
+uint8_t os_get_current_pid(void);
 
 //void copy_string(char *destination, uint8_t destination_size, char *source);
 
