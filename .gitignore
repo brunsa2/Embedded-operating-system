@@ -4,6 +4,4 @@
 .DS_Store
 bin/*
 src/*.o
-src-old
-src-old/*
 test/*.o
