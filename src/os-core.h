@@ -38,6 +38,23 @@
 #error Unsupported processor
 #endif
 
+/* Critical sections */
+
+#ifdef __AVR_TestEnv__
+#define ENTER_CRITICAL_SECTION()
+#define ENTER_CRITICAL_SECITON_AGAIN()
+#define LEAVE_CRITICAL_SECTION()
+#elif __AVR_ATmega328P__
+#define ENTER_CRITICAL_SECTION() \
+uint8_t flags = SREG; \
+asm volatile ("cli");
+#define ENTER_CRITICAL_SECTION_AGAIN() \
+flags = SREG; \
+asm volatile ("cli");
+#define LEAVE_CRITICAL_SECTION() \
+SREG = flags;
+#endif
+
 // TODO: Add preprocess check on various params
 
 /**
@@ -77,8 +94,8 @@ typedef struct {
     uint8_t r7, r6, r5, r4, r3, r2, r1, sreg, r0;
     uint8_t task_address_high, task_address_low;
     uint8_t terminate_address_high, terminate_address_low;
-    void (*task_function)(void);
-    void (*terminate_function)(void);
+    //void (*task_function)(void);
+    //void (*terminate_function)(void);
 } t_task_stack_frame;
 
 typedef struct {
@@ -101,10 +118,15 @@ void timer_interrupt(void);
 //void os_init(void);
 void os_init(void) INIT5_SECTION NAKED;
 
+
+
+void os_switch_processes(void) NAKED NOINLINE;
+
+
 /**
  * Start multitasking with the timer ticker
  */
-//void os_start_ticker(void);
+void os_start(void);
 
 /**
  * Add new task to operating system

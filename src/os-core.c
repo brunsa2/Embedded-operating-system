@@ -16,7 +16,6 @@
 #include <avr/interrupt.h>
 #endif
 #include "os-core.h"
-#include "os-util.h"
 
 #ifdef __AVR_ATmega328P__
 #elif __AVR_TestEnv__
@@ -29,13 +28,11 @@ volatile unsigned long int stack_high, stack_low;
 #define STACK_HIGH (stack_high)
 #define STACK_LOW (stack_low)
 #define PTR_TO_INT_CAST(ptr) ((unsigned long int) ptr)
-
 #define SLEEP()
 #elif __AVR_ATmega328P__
 #define STACK_HIGH (*((volatile uint8_t *)(0x5e)))
 #define STACK_LOW (*((volatile uint8_t *)(0x5d)))
 #define PTR_TO_INT_CAST(ptr) ((uint16_t) ptr)
-
 #define SLEEP() asm("sleep");
 #endif
 
@@ -125,31 +122,14 @@ volatile unsigned long int stack_high, stack_low;
 #define RETURN() asm volatile ("ret \n\t");
 #endif
 
-/* Critical sections */
-
-#ifdef __AVR_TestEnv__
-#define ENTER_CRITICAL_SECTION()
-#define ENTER_CRITICAL_SECITON_AGAIN()
-#define LEAVE_CRITICAL_SECTION()
-#elif __AVR_ATmega328P__
-#define ENTER_CRITICAL_SECTION() \
-    uint8_t flags = SREG; \
-    asm volatile ("cli");
-#define ENTER_CRITICAL_SECTION_AGAIN() \
-    flags = SREG; \
-    asm volatile ("cli");
-#define LEAVE_CRITICAL_SECTION() \
-    SREG = flags;
-#endif
-
 #ifdef __AVR_TestEnv__
 #define TICK_ROLLOVER 0xf
 #else
-#define TICK_ROLLOVER 0x7fffffff
+#define TICK_ROLLOVER 0x7fffffffL
 #endif
 
 volatile t_process_control_block pcb[NUMBER_OF_PROCESSES];
-static volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
+volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
 volatile uint8_t current_process;
 volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE] NOINIT;
 volatile uint16_t quantum_ticks;
@@ -158,7 +138,6 @@ volatile uint8_t nesting_level;
 
 static void os_idle_task(void) NORETURN;
 static void os_terminate_current_task(void);
-static void os_switch_processes(void) NAKED NOINLINE;
 static void os_schedule(void);
 
 void os_init(void) {
@@ -172,20 +151,20 @@ void os_init(void) {
     priority_buffer[NUMBER_OF_PROCESSES - 2] = 0;
         
     os_add_task(os_idle_task, &idle_task_stack[IDLE_TASK_STACK_SIZE - 1], NUMBER_OF_PROCESSES - 1);
-    //enable_timer();
+    
+#ifdef __AVR_ATmega328P__
+	TCNT0 = 0;
+	TCCR0A = (1 << WGM01); // CTC mode
+    TCCR0B = (1 << CS01) | (1 << CS00); // clk/64
+	OCR0A = 250; // clk/64/250 = clk/16000
+	TIMSK0 |= (1 << OCIE0A);
+#endif
 }
 
 void os_stop(void) NORETURN FINI1_SECTION NAKED;
 void os_stop(void) {
     while (1);
 }
-
-#ifndef __AVR_TestEnv__
-// This is a dummy main function for development purposes
-int main(void) {
-    return 0;
-}
-#endif
 
 int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority) {
 	if (priority >= NUMBER_OF_PROCESSES) {
@@ -210,8 +189,12 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 	priority_buffer[priority] = current_pcb;
     
     t_task_stack_frame *new_task = (t_task_stack_frame *) (stack - sizeof(t_task_stack_frame) + 1);
-    new_task->terminate_function = os_terminate_current_task;
-    new_task->task_function = task;
+    //new_task->terminate_function = os_terminate_current_task;
+    //new_task->task_function = task;
+    new_task->terminate_address_low = (uint8_t) (PTR_TO_INT_CAST(os_terminate_current_task) & 0xff);
+    new_task->terminate_address_high = (uint8_t) (PTR_TO_INT_CAST(os_terminate_current_task) >> 8);
+    new_task->task_address_low = (uint8_t) (PTR_TO_INT_CAST(task) & 0xff);
+    new_task->task_address_high = (uint8_t) (PTR_TO_INT_CAST(task) >> 8);
     new_task->r1 = 0;
     new_task->sreg = 0x80;
     
@@ -237,6 +220,15 @@ uint8_t os_get_current_pid(void) {
 	return current_process;
 }
 
+/**
+ * Start multitasking with the timer ticker
+ */
+void os_start(void) {
+#ifndef __AVR_TestEnv__
+	asm("sei");
+#endif
+}
+
 #ifdef __AVR_TestEnv__
 void timer_interrupt(void) {
 #elif __AVR_ATmega328P__
@@ -257,11 +249,11 @@ ISR(TIMER0_COMPA_vect) {
             system_ticks = 0;
         }
 		quantum_ticks = 0;
-        //os_switch_processes();
+        os_switch_processes();
 	}
 }
     
-static void os_switch_processes(void) {
+void os_switch_processes(void) {
     SAVE_CONTEXT();
     
     pcb[current_process].stack_pointer = (uint8_t *) (STACK_HIGH << 8 | STACK_LOW);

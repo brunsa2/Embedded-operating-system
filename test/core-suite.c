@@ -4,11 +4,13 @@
 #include "../src/os-core.h"
 
 extern volatile t_process_control_block pcb[NUMBER_OF_PROCESSES];
+extern volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
 extern volatile unsigned long int stack_high, stack_low;
-extern volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE] NOINIT;
+extern volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE];
 extern volatile uint16_t quantum_ticks;
 extern volatile uint32_t system_ticks;
 extern volatile uint8_t current_process;
+extern volatile uint8_t nesting_level;
 
 static void test_os_init(CuTest *test) {
     stack_high = 0x12;
@@ -84,6 +86,52 @@ static void test_get_current_pid(CuTest *test) {
     CuAssertUint8Equals(test, current_process, current_process_from_function);
 }
 
+static void test_process_switch(CuTest *test) {
+    current_process = 1;
+    nesting_level = 0;
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    pcb[0].running = 1;
+    pcb[1].running = 1;
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 1;
+    
+    os_switch_processes();
+    
+    CuAssertUint8Equals(test, 0, current_process);
+}
+
+static void test_process_switch_with_lock_nesting(CuTest *test) {
+    current_process = 1;
+    nesting_level = 1;
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    pcb[0].running = 1;
+    pcb[1].running = 1;
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 1;
+    
+    os_switch_processes();
+    
+    CuAssertUint8Equals(test, 1, current_process);
+}
+
+static void test_process_switch_to_lower_priority(CuTest *test) {
+    current_process = 0;
+    nesting_level = 0;
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    pcb[0].running = 1;
+    pcb[0].suspended = 1;
+    pcb[1].running = 1;
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 1;
+    
+    os_switch_processes();
+    
+    CuAssertUint8Equals(test, 1, current_process);
+}
+
 CuSuite* CuGetSuite(void) {
     CuSuite *suite = CuSuiteNew();
     
@@ -93,6 +141,9 @@ CuSuite* CuGetSuite(void) {
     SUITE_ADD_TEST(suite, test_timer_tick_at_system_tick_rollover);
     SUITE_ADD_TEST(suite, test_timer_tick_at_system_tick_rollover_after_delay);
     SUITE_ADD_TEST(suite, test_get_current_pid);
+    SUITE_ADD_TEST(suite, test_process_switch);
+    SUITE_ADD_TEST(suite, test_process_switch_with_lock_nesting);
+    SUITE_ADD_TEST(suite, test_process_switch_to_lower_priority);
         
     return suite;
 }

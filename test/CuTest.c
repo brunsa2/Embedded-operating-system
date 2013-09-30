@@ -382,6 +382,6 @@ int CuSuiteErrorCode(CuSuite* testSuite)
     }
     else
     {
-        return -1;
+        return 1;
     }
 }
