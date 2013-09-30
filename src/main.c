@@ -10,6 +10,7 @@ static volatile uint8_t pid;
 void test_task(void) {
     uint8_t x;
     pid = os_get_current_pid();
+    os_suspend_task(pid);
     for (x = 0; x < 5; x++) {
         usart_putsf("!\r\n");
         os_delay(os_get_current_pid(), 1000);
@@ -21,20 +22,13 @@ int main(void) {
     usart_init(0, USART_TRANSMIT);
     os_start();
     
-    os_lock_scheduler();
-    uint16_t y;
-    for (y = 0; y < 10000; y++) {
-        usart_putsf("Hi %l\r\n", y);
-    }
-    os_unlock_scheduler();
-    
     uint8_t x;
     for (x = 0; x < 3; x++) {
         usart_putsf("Hello World\r\n");
         os_delay(os_get_current_pid(), 1000);
     }
     
-    os_remove_task(pid);
+    os_resume_task(pid);
     
     while (1) {
         usart_putsf("Hello World\r\n");

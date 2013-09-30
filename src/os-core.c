@@ -203,6 +203,10 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 	return current_pcb;
 }
 
+static void os_terminate_current_task(void) {
+	os_remove_task(os_get_current_pid());
+}
+
 /**
  * Remove a task from running
  */
@@ -223,8 +227,26 @@ int8_t os_remove_task(uint8_t pid) {
 	return 0;
 }
 
-static void os_terminate_current_task(void) {
-	os_remove_task(os_get_current_pid());
+int8_t os_suspend_task(uint8_t pid) {
+	if (pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].suspended = 1;
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return 0;
+}
+
+int8_t os_resume_task(uint8_t pid) {
+	if (pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	pcb[pid].suspended = 0;
+	LEAVE_CRITICAL_SECTION();
+    os_switch_processes();
+	return 0;
 }
 
 static void os_idle_task(void) {
