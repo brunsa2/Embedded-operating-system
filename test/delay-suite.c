@@ -32,11 +32,30 @@ static void test_cancel_delay(CuTest *test) {
     CuAssertUint8Equals(test, 0, (uint8_t) pcb[0].delayed);
 }
 
+static void test_delay_at_scheduler(CuTest *test) {
+    current_process = 1;
+    system_ticks = 0;
+    nesting_level = 0;
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    pcb[0].running = 1;
+    pcb[1].running = 1;
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 1;
+    pcb[0].delayed = 1;
+    pcb[0].start_timestamp = 10;
+    
+    os_switch_processes();
+    
+    CuAssertUint8Equals(test, 1, current_process);
+}
+
 CuSuite* get_delay_suite(void) {
     CuSuite *suite = CuSuiteNew();
     
     SUITE_ADD_TEST(suite, test_delay);
     SUITE_ADD_TEST(suite, test_cancel_delay);
+    SUITE_ADD_TEST(suite, test_delay_at_scheduler);
     
     return suite;
 }
