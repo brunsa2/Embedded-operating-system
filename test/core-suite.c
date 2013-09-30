@@ -132,6 +132,33 @@ static void test_process_switch_to_lower_priority(CuTest *test) {
     CuAssertUint8Equals(test, 1, current_process);
 }
 
+static void dummy_task(void) {
+    return;
+}
+
+static void test_add_task(CuTest *test) {
+    volatile uint8_t dummy_stack[sizeof(t_task_stack_frame) + 100];
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    
+    os_add_task(dummy_task, &dummy_stack[127], 0);
+    
+    CuAssertUint8Equals(test, 0, priority_buffer[0]);
+    CuAssertUint8Equals(test, 1, pcb[0].running);
+}
+
+static void test_remove_task(CuTest *test) {
+    memset((void *) pcb, 0, NUMBER_OF_PROCESSES * sizeof(t_process_control_block));
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    priority_buffer[0] = 0;
+    pcb[0].running = 1;
+    
+    os_remove_task(0);
+    
+    CuAssertUint8Equals(test, 0, (uint8_t) pcb[0].running);
+    CuAssertUint8Equals(test, 0xff, priority_buffer[0]);
+}
+
 CuSuite* get_core_suite(void) {
     CuSuite *suite = CuSuiteNew();
     
@@ -144,6 +171,8 @@ CuSuite* get_core_suite(void) {
     SUITE_ADD_TEST(suite, test_process_switch);
     SUITE_ADD_TEST(suite, test_process_switch_with_lock_nesting);
     SUITE_ADD_TEST(suite, test_process_switch_to_lower_priority);
+    SUITE_ADD_TEST(suite, test_add_task);
+    SUITE_ADD_TEST(suite, test_remove_task);
         
     return suite;
 }
