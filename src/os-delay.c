@@ -30,3 +30,18 @@ int8_t os_delay(uint8_t pid, uint32_t ticks) {
 	os_switch_processes();
 	return 0;
 }
+
+/**
+ * Cancel any delay on a task
+ * @param pid Process ID to cancel delay for
+ */
+int8_t os_cancel_delay(uint8_t pid) {
+    if (pid < 0 || pid >= NUMBER_OF_PROCESSES) {
+        return -1;
+    }
+    ENTER_CRITICAL_SECTION();
+    pcb[pid].delayed = 0;
+    LEAVE_CRITICAL_SECTION();
+    os_switch_processes();
+    return 0;
+}
