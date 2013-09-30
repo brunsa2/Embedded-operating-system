@@ -136,7 +136,7 @@ int8_t os_add_task(void (*task)(void), volatile uint8_t *stack, uint8_t priority
 /**
  * Remove a task from the operating system
  */
-//int8_t os_remove_task(uint8_t pid);
+int8_t os_remove_task(uint8_t pid);
 
 /**
  * Get current task
