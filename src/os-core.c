@@ -228,6 +228,33 @@ int8_t os_remove_task(uint8_t pid) {
 	return 0;
 }
 
+int8_t os_set_task_priority(uint8_t pid, uint8_t priority) {
+	if (priority >= NUMBER_OF_PROCESSES || pid >= NUMBER_OF_PROCESSES) {
+		return -1;
+	}
+	ENTER_CRITICAL_SECTION();
+	uint8_t old_priority = os_get_task_priority(pid);
+    uint8_t return_code = -1;
+	if (priority_buffer[priority] == 0xff) {
+		priority_buffer[priority] = pid;
+		priority_buffer[old_priority] = 0xff;
+        return_code = 0;
+	}
+	LEAVE_CRITICAL_SECTION();
+	os_switch_processes();
+	return return_code;
+}
+
+int8_t os_get_task_priority(uint8_t pid) {
+	int current_priority;
+	for (current_priority = 0; current_priority < NUMBER_OF_PROCESSES; current_priority++) {
+		if (priority_buffer[current_priority] == pid) {
+			return current_priority;
+		}
+	}
+	return -1;
+}
+
 int8_t os_suspend_task(uint8_t pid) {
 	if (pid >= NUMBER_OF_PROCESSES) {
 		return -1;

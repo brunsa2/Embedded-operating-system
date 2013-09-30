@@ -163,8 +163,8 @@ uint8_t os_get_current_pid(void);
 //void os_set_task_name(uint8_t pid, char *name);
 //char *os_get_task_name(uint8_t pid);
 
-//int8_t os_set_task_priority(uint8_t pid, uint8_t priority);
-//int8_t os_get_task_priority(uint8_t pid);
+int8_t os_set_task_priority(uint8_t pid, uint8_t priority);
+int8_t os_get_task_priority(uint8_t pid);
 
 int8_t os_suspend_task(uint8_t pid);
 int8_t os_resume_task(uint8_t pid);

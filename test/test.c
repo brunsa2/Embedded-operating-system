@@ -22,3 +22,5 @@ int main(void) {
     return CuSuiteErrorCode(suite);
 }
 #endif
+
+// TODO: Test result codes of functions

@@ -217,6 +217,46 @@ static void test_process_switch_with_suspended_task(CuTest *test) {
     CuAssertUint8Equals(test, 1, current_process);
 }
 
+static void test_set_priority(CuTest *test) {
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 0xff;
+    
+    os_set_task_priority(0, 1);
+    
+    CuAssertUint8Equals(test, 0xff, priority_buffer[0]);
+    CuAssertUint8Equals(test, 0, priority_buffer[1]);
+}
+
+static void test_set_priority_with_no_room(CuTest *test) {
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    priority_buffer[0] = 0;
+    priority_buffer[1] = 1;
+    
+    int8_t result_code = os_set_task_priority(0, 1);
+    
+    CuAssertUint8Equals(test, 0, priority_buffer[0]);
+    CuAssertUint8Equals(test, 1, priority_buffer[1]);
+    CuAssertInt8Equals(test, -1, result_code);
+}
+
+static void test_get_priority(CuTest *test) {
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    priority_buffer[1] = 0;
+    
+    int8_t priority = os_get_task_priority(0);
+    
+    CuAssertInt8Equals(test, 1, priority);
+}
+
+static void test_get_missing_priority(CuTest *test) {
+    memset((void *) priority_buffer, 0xff, NUMBER_OF_PROCESSES * sizeof(uint8_t));
+    
+    int8_t priority = os_get_task_priority(0);
+    
+    CuAssertInt8Equals(test, -1, priority);
+}
+
 CuSuite* get_core_suite(void) {
     CuSuite *suite = CuSuiteNew();
     
@@ -237,6 +277,10 @@ CuSuite* get_core_suite(void) {
     SUITE_ADD_TEST(suite, test_suspend_task);
     SUITE_ADD_TEST(suite, test_resume_task);
     SUITE_ADD_TEST(suite, test_process_switch_with_suspended_task);
+    SUITE_ADD_TEST(suite, test_set_priority);
+    SUITE_ADD_TEST(suite, test_set_priority_with_no_room);
+    SUITE_ADD_TEST(suite, test_get_priority);
+    SUITE_ADD_TEST(suite, test_get_missing_priority);
         
     return suite;
 }
