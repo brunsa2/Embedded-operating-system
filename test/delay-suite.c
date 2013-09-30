@@ -6,9 +6,6 @@
 
 extern volatile t_process_control_block pcb[NUMBER_OF_PROCESSES];
 extern volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
-extern volatile unsigned long int stack_high, stack_low;
-extern volatile uint8_t idle_task_stack[IDLE_TASK_STACK_SIZE];
-extern volatile uint16_t quantum_ticks;
 extern volatile uint32_t system_ticks;
 extern volatile uint8_t current_process;
 extern volatile uint8_t nesting_level;

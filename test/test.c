@@ -4,6 +4,7 @@
 
 CuSuite* get_core_suite();
 CuSuite* get_delay_suite();
+CuSuite* get_semaphore_suite();
 
 #ifdef __AVR_TestEnv__
 int main(void) {
@@ -12,6 +13,7 @@ int main(void) {
     
     CuSuiteAddSuite(suite, get_core_suite());
     CuSuiteAddSuite(suite, get_delay_suite());
+    CuSuiteAddSuite(suite, get_semaphore_suite());
     
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);

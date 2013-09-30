@@ -128,6 +128,7 @@ volatile unsigned long int stack_high, stack_low;
 #define TICK_ROLLOVER 0x7fffffffL
 #endif
 
+// Rename "process" things to "task"
 volatile t_process_control_block pcb[NUMBER_OF_PROCESSES];
 volatile uint8_t priority_buffer[NUMBER_OF_PROCESSES] NOINIT;
 volatile uint8_t current_process;
