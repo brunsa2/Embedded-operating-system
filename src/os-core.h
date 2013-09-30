@@ -173,7 +173,7 @@ uint8_t os_get_current_pid(void);
 //int8_t os_semaphore_wait(os_semaphore *semaphore);
 //int8_t os_semaphore_signal(os_semaphore *semaphore);
 
-//void os_lock_scheduler(void);
-//void os_unlock_scheduler(void);
+void os_lock_scheduler(void);
+void os_unlock_scheduler(void);
 
 #endif

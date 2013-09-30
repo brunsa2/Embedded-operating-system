@@ -249,6 +249,31 @@ void os_start(void) {
 #endif
 }
 
+// The lock/unlock pair should not contain any system calls that switch tasks
+// (such as delays or semaphore signals). Use is undefined.
+void os_lock_scheduler(void) {
+    ENTER_CRITICAL_SECTION();
+    if (nesting_level < 255) {
+        nesting_level++;
+    }
+    LEAVE_CRITICAL_SECTION();
+}
+
+void os_unlock_scheduler(void) {
+    ENTER_CRITICAL_SECTION();
+    if (nesting_level > 0) {
+        nesting_level--;
+        if (!nesting_level) {
+            LEAVE_CRITICAL_SECTION();
+            os_switch_processes();
+        } else {
+            LEAVE_CRITICAL_SECTION();
+        }
+    } else {
+        LEAVE_CRITICAL_SECTION();
+    }
+}
+
 #ifdef __AVR_TestEnv__
 void timer_interrupt(void) {
 #elif __AVR_ATmega328P__

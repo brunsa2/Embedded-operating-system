@@ -21,6 +21,13 @@ int main(void) {
     usart_init(0, USART_TRANSMIT);
     os_start();
     
+    os_lock_scheduler();
+    uint16_t y;
+    for (y = 0; y < 10000; y++) {
+        usart_putsf("Hi %l\r\n", y);
+    }
+    os_unlock_scheduler();
+    
     uint8_t x;
     for (x = 0; x < 3; x++) {
         usart_putsf("Hello World\r\n");
