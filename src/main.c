@@ -25,7 +25,7 @@ void test_2_task(void) {
 
 int main(void) {
     os_add_task(test_task, &test_stack[127], 1);
-    os_add_task(test_2_task, &test_2_stack[127], 2);
+    //os_add_task(test_2_task, &test_2_stack[127], 2);
     usart_init(0, USART_TRANSMIT);
     os_start();
     

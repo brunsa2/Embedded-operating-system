@@ -132,7 +132,7 @@ static void test_process_switch_to_lower_priority(CuTest *test) {
     CuAssertUint8Equals(test, 1, current_process);
 }
 
-CuSuite* CuGetSuite(void) {
+CuSuite* get_core_suite(void) {
     CuSuite *suite = CuSuiteNew();
     
     SUITE_ADD_TEST(suite, test_os_init);

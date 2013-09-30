@@ -2,14 +2,16 @@
 
 #include "CuTest.h"
 
-CuSuite* CuGetSuite();
+CuSuite* get_core_suite();
+CuSuite* get_delay_suite();
 
 #ifdef __AVR_TestEnv__
 int main(void) {
     CuString *output = CuStringNew();
     CuSuite *suite = CuSuiteNew();
     
-    CuSuiteAddSuite(suite, CuGetSuite());
+    CuSuiteAddSuite(suite, get_core_suite());
+    CuSuiteAddSuite(suite, get_delay_suite());
     
     CuSuiteRun(suite);
     CuSuiteSummary(suite, output);
